@@ -1,0 +1,184 @@
+#!/usr/bin/env bash
+
+print_usage() {
+  echo -e "Unsupported option: $@"
+  echo -e "Supported options:"
+  echo -e "\t-u, --update          \tUpdate all plugins."
+  echo -e "\t-n, --non-interactive \tDon't show vim while installing plugins."
+}
+
+UPDATE=0
+
+if [[ -t 0 ]]
+then
+  INTERACTIVE=1
+else
+  echo "Detected non-interactive shell, forcing --non-interactive"
+  INTERACTIVE=0
+fi
+
+while [[ $# > 0 ]]
+do
+  key="$1"
+
+  case $key in
+    -n|--non-interactive)
+      INTERACTIVE=0
+      shift
+      ;;
+    -u|--update)
+      UPDATE=1
+      shift
+      ;;
+    *)
+      print_usage $key
+      exit 1
+      ;;
+  esac
+  shift
+done
+
+FILES_TO_LINK="vimrc gvimrc"
+LOCALS=".vimrc.local.before .vimrc.local .vimrc.local.plugins"
+
+DIR=$(cd $(dirname $0) && pwd)
+if [ $(basename $DIR) == "bin" ]; then
+  DIR=$(cd ${DIR}/.. && pwd)
+fi
+
+if [ "$DIR" != "$HOME/.vim" ]; then
+  dot_file=$HOME/.vim
+  if [ ! -e $dot_file ]; then
+    echo "Detected clone outside of ~/.vim, symlinking"
+    ln -s $DIR $dot_file
+  fi
+fi
+
+if which nvim > /dev/null; then
+  mkdir -p ${XDG_CONFIG_HOME:=$HOME/.config}
+  if [ ! -e $XDG_CONFIG_HOME/nvim ]; then
+    ln -s $DIR $XDG_CONFIG_HOME/nvim
+  fi
+fi
+
+pushd $DIR > /dev/null
+
+if [ -e $DIR/bundle ]; then
+  rm -rf $DIR/bundle
+fi
+
+git submodule update --init --recursive
+
+for file in $LOCALS; do
+  dot_file=$HOME/$file
+  touch $dot_file
+done
+
+for file in $FILES_TO_LINK; do
+  dot_file=$HOME/.$file
+  if [ ! -e $dot_file ]; then
+    ln -s $DIR/$file $dot_file
+  fi
+done
+
+if [ "$(uname)" == "Darwin" ]; then
+  VIM_UPDATE_PATH=/usr/local/bin
+elif [ "$(expr substr $(uname -s) 1 5)" == "Linux" ]; then
+  VIM_UPDATE_PATH=$HOME/bin
+fi
+
+if [ -L $VIM_UPDATE_PATH/vim-update ]; then
+  rm -f $VIM_UPDATE_PATH/vim-update
+fi
+
+if [ ! -L $VIM_UPDATE_PATH/vim-update ]; then
+  mkdir -p $VIM_UPDATE_PATH
+  ln -s $DIR/bin/update $VIM_UPDATE_PATH/vim-update
+fi
+
+green='\033[0;32m'
+yellow='\033[0;33m'
+red='\033[0;31m'
+bold=`tput bold`
+normal=`tput sgr0`
+end_color='\033[0;m'
+
+if which elm > /dev/null; then
+  echo -e "${yellow}INSTALL${end_color} ${bold}elm${normal} dependencies..."
+  if which npm > /dev/null; then
+    npmpackages="\
+      elm-test \
+      elm-oracle \
+      "
+
+    for p in $npmpackages; do
+      (
+        echo -e "\t${yellow}INSTALL${end_color} ${bold}${p}${normal}..."
+        if npm install -g $p; then
+          echo -e "\t${green}DONE${end_color}    ${bold}${p}${normal}"
+        else
+          echo -e "\t${red}ERROR${end_color}    ${bold}${p}${normal}"
+        fi
+      ) &
+    done
+  else
+    echo -e "\t${red}ERROR${end_color} ${bold}NPM not found, some elm dependencies were skipped${normal}!"
+  fi
+
+  (
+    echo -e "\t${yellow}INSTALL${end_color} ${bold}elm-format${normal}..."
+    if [[ "$OSTYPE" == "linux-gnu" ]]; then
+      elm_format_url='https://github.com/avh4/elm-format/releases/download/0.2.0-alpha/elm-format-0.2.0-alpha-linux-x64.tgz'
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+      elm_format_url='https://github.com/avh4/elm-format/releases/download/0.2.0-alpha/elm-format-0.2.0-alpha-mac-x64.tgz'
+    fi
+    tar xz -O < <(curl -L $elm_format_url) > bin/elm-format
+    chmod a+x bin/elm-format
+    echo -e "\t${green}DONE${end_color}    ${bold}elm-format${normal}"
+  ) &
+  wait
+  echo -e "${green}DONE${end_color}    ${bold}elm${normal} dependencies"
+fi
+
+if which npm > /dev/null; then
+  npm install -g livedown
+fi
+
+vim=vim
+if which nvim > /dev/null; then
+  vim=nvim
+fi
+
+echo -e "${yellow}INSTALL${end_color} ${bold}vim plugins${normal} (may take a while)..."
+exec 4>&1 3>/dev/null
+if [ $INTERACTIVE != 1 ] ; then
+  if which nvim > /dev/null; then
+    vim='nvim --headless'
+  else
+    exec 4>&1 1>&3 2>&3
+  fi
+fi
+
+ALL_PLUGINS='true' $vim +'PlugClean!' +'PlugUpdate!' +'qall!'
+
+echo -e "${green}DONE${end_color} ${bold}vim plugins${normal}" >&4
+
+if which nvim > /dev/null; then
+  vim='nvim --headless'
+fi
+
+if which nvim > /dev/null; then
+  $vim +'UpdateRemotePlugins' +'qall!'
+  echo
+fi
+
+if which go > /dev/null; then
+  mkdir -p gobin gopath
+  echo -e "${yellow}INSTALL${end_color} ${bold}go binaries${normal} (may take a while)..." >&4
+  GOPATH=$PWD/gopath $vim +'GoUpdateBinaries' +'GoDoctorInstall' +'ConcourseUpdateBinaries' +'qall!'
+  echo
+  GOPATH=$PWD/gopath GOBIN=$PWD/gobin $PWD/gobin/gometalinter --install --update
+  echo -e "${green}DONE${end_color} ${bold}go binaries${normal}" >&4
+fi
+
+popd > /dev/null
