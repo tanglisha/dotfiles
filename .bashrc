@@ -14,9 +14,6 @@ export GIT_HOSTING='git@github.com'
 # Don't check mail when opening terminal.
 unset MAILCHECK
 
-# Change this to your console based IRC client of choice.
-export IRC_CLIENT='xchat'
-
 # Set this to the command you use for todo.txt-cli
 export TODO="t"
 
@@ -37,6 +34,6 @@ export BOOST_INSTALL=/usr/include/boost
 export GMP_INSTALL=/usr/lib
 
 # rbenv setup
-export RBENV_ROOT="$HOME/.rbenv"
-export PATH="$RBENV_ROOT/bin:$PATH"
-eval "$(rbenv init -)"
+# export RBENV_ROOT="$HOME/.rbenv"
+# export PATH="$RBENV_ROOT/bin:$PATH"
+# eval "$(rbenv init -)"
