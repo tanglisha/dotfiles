@@ -2,7 +2,7 @@
 /usr/bin/setxkbmap -option "caps:swapescape"
 
 # Path to the bash it configuration
-export BASH_IT="/home/tanglisha/.bash_it"
+export BASH_IT="${HOME}/.bash_it"
 
 # Lock and Load a custom theme file
 # location /.bash_it/themes/
@@ -29,7 +29,6 @@ source $BASH_IT/bash_it.sh
 
 [ -f ~/.fzf.bash ] && source ~/.fzf.bash
 
-# export IKOS_INSTALL=/home/tanglisha/ikos-1.1.0
 export BOOST_INSTALL=/usr/include/boost
 export GMP_INSTALL=/usr/lib
 
